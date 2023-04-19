@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>learn-websocket</title>
+</head>
+
+<body>
+  <input type="text" id="ipt">
+  <button id="connect-btn">连接</button>
+  <button id="send-btn" disabled>发送消息</button>
+  <button id="close-btn">断开连接</button>
+
+  <p>
+    <span>client message: </span>
+    <span id="text" style="color: #f00;"></span>
+  </p>
+  <script type="module">
+    import WebSocketOperator from "./dist/WebSocketOperator.js";
+    // 打印日志
+    WebSocketOperator.isDebug = true;
+
+    const connectBtn = document.getElementById("connect-btn");
+    const sendBtn = document.getElementById("send-btn");
+    const closeBtn = document.getElementById("close-btn");
+    const ipt = document.getElementById("ipt");
+    const span = document.getElementById("text");
+
+
+    connectBtn.addEventListener("click", () => {
+      connectBtn.disabled = true;
+      WebSocketOperator.isCompatibleWebSocket((err) => {
+        sendBtn.disabled = false;
+        if (err) {
+          alert(err.message);
+          return;
+        }
+
+        const wsOperator = new WebSocketOperator("ws:localhost:8888/ws-test");
+
+        wsOperator.onmessage = (msg) => {
+          console.log("onmessage: ", msg);
+          span.innerText = msg.event.data;
+        }
+        wsOperator.onopen = (msg) => {
+          console.log("onopen: ", msg);
+        }
+        wsOperator.onclose = (msg) => {
+          console.log("onclose: ", msg);
+        }
+        wsOperator.onerror = (msg) => {
+          console.log("onerror: ", msg);
+        }
+
+        wsOperator.onheartbeat = (event) => { // 发送心跳
+          console.log("onheartbeat: ", event);
+        }
+        wsOperator.onreconnection = (event) => { // 重新连接
+          console.log("onreconnection: ", event);
+        }
+        wsOperator.onmaxReconnection = (event) => { // 达到最大连接
+          console.log("onmaxReconnection: ", event);
+        }
+        wsOperator.ondestroy = (event) => { // 销毁
+          console.log("ondestroy: ", event);
+        }
+
+
+        sendBtn.addEventListener("click", async () => {
+          // 给服务器发送消息
+          await wsOperator.send(ipt.value);
+          ipt.value = "";
+          sendBtn.disabled = true;
+          setTimeout(() => {
+            sendBtn.disabled = false;
+          }, 2000);
+        });
+
+        closeBtn.addEventListener("click", () => {
+          wsOperator.close();
+          connectBtn.disabled = false;
+          console.log("已取消", wsOperator.getWebSocket());
+        });
+
+      });
+    });
+
+  </script>
+</body>
+
+</html>
