@@ -1,3 +1,12 @@
+type WebSocketState = {
+    alive: boolean;
+    message: string;
+    ws: WebSocket;
+    readyState: number;
+    ReconnectionNum?: number;
+};
+type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
+type sendType = string | ArrayBufferLike | Blob | ArrayBufferView;
 type EventObjType = {
     event: Event;
 };
@@ -24,15 +33,16 @@ export type WebSocketOperatorOption = {
      */
     reconnectInterval: number;
     /**
-     * 最大失败重试次数
+     * 重试加快(重试次数越多, 则下次重试时间越快)
+     */
+    isSpeedUp: boolean;
+    /**
+     * 最大失败重试次数, (-1就是无限重试, 其他值则是到达则停止)
      */
     maxReconnectionNum: number;
 };
 export default class WebSocketOperator {
     #private;
-    opt: Partial<WebSocketOperatorOption> & {
-        url: string;
-    };
     private static reconnectionInstance;
     private static isDebug;
     /**
@@ -44,8 +54,8 @@ export default class WebSocketOperator {
         url: string;
     });
     /**
-   * WebSocket 兼容性判断
-   */
+     * WebSocket 兼容性判断
+     */
     static isCompatibleWebSocket(): Promise<void>;
     private static log;
     /**
@@ -67,40 +77,40 @@ export default class WebSocketOperator {
     protected $oncloseOperator(e: CloseEvent): void;
     protected $onerrorOperator(e: Event): void;
     /**
-   * 发送数据
-   */
+     * 发送数据
+     */
     send(msg: sendType): Promise<Error | void>;
     /**
      * 关闭 WebSocket
      */
     close(code?: number, reason?: string): void;
     /**
-   * 获取 WebSocket 的状态
-   */
+     * 获取 WebSocket 的状态
+     */
     getWebSocketState(): WebSocketState;
     /**
-   * 发送心跳
-   */
+     * 发送心跳
+     */
     startHeartbeat(): void;
     /**
-   * 停止心跳
-   */
+     * 停止心跳
+     */
     endHeartbeat(): void;
     /**
-   * 重新创建实例
-   */
+     * 重新创建实例
+     */
     reconnection(interval?: number, url?: string): void;
     /**
-   * 停止重试
-   */
+     * 停止重试
+     */
     endReconnection(): void;
     /**
-   * 根据重试次数计算重试间隔
-   */
+     * 根据重试次数计算重试间隔
+     */
     calcReconnectionInterval(): number;
     /**
-   * 销毁
-   */
+     * 销毁
+     */
     destroy(code?: number, reason?: string): void;
     get url(): string;
     set url(url: string);
@@ -111,6 +121,8 @@ export default class WebSocketOperator {
     set heartbeatData(heartbeatData: string);
     get reconnectInterval(): number;
     set reconnectInterval(reconnectInterval: number);
+    get isSpeedUp(): boolean;
+    set isSpeedUp(isSpeedUp: boolean);
     get maxReconnectionNum(): number;
     set maxReconnectionNum(maxReconnectionNum: number);
 }

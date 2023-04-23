@@ -32,14 +32,22 @@
 
     connectBtn.addEventListener("click", () => {
       connectBtn.disabled = true;
-      WebSocketOperator.isCompatibleWebSocket((err) => {
-        sendBtn.disabled = false;
-        if (err) {
-          alert(err.message);
-          return;
-        }
+      WebSocketOperator.isCompatibleWebSocket().then(res => {
+        const wsOperator = new WebSocketOperator({
+          url: "ws:localhost:8888/ws-test",
+          heartbeatInterval: 1000,
+          heartbeatData: "自定义心跳回应数据",
+          reconnectInterval: 1500,
+          maxReconnectionNum: -1,
+          // maxReconnectionNum: 10,
+          isSpeedUp: false,
+        });
 
-        const wsOperator = new WebSocketOperator("ws:localhost:8888/ws-test");
+        // setTimeout(() => {
+        //   wsOperator.option.heartbeatData = "我变了";
+        //   // TODO 不会更新到心跳中
+        //   wsOperator.option.heartbeatInterval = 3000;
+        // }, 4000);
 
         wsOperator.onmessage = (msg) => {
           console.log("onmessage: ", msg);
@@ -82,9 +90,14 @@
         closeBtn.addEventListener("click", () => {
           wsOperator.close();
           connectBtn.disabled = false;
-          console.log("已取消", wsOperator.getWebSocket());
+          console.log("已取消", wsOperator.ws);
         });
-
+      }).catch(err => {
+        if (err) {
+          alert(err.message);
+        }
+      }).finally(err => {
+        sendBtn.disabled = false;
       });
     });
 

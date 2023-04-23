@@ -1,3 +1,15 @@
+type WebSocketState = {
+  alive: boolean;
+  message: string;
+  ws: WebSocket;
+  readyState: number;
+  ReconnectionNum?: number;
+}
+
+type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
+
+type sendType = string | ArrayBufferLike | Blob | ArrayBufferView
+
 type EventObjType = { event: Event };
 export type EventParams = WebSocketState & EventObjType;
 
@@ -28,7 +40,12 @@ export type WebSocketOperatorOption = {
 	reconnectInterval: number;
 
 	/**
-	 * 最大失败重试次数
+	 * 重试加快(重试次数越多, 则下次重试时间越快)
+	 */
+	isSpeedUp: boolean,
+
+	/**
+	 * 最大失败重试次数, (-1就是无限重试, 其他值则是到达则停止)
 	 */
 	maxReconnectionNum: number;
 };
@@ -38,7 +55,8 @@ const defaultOption: Omit<WebSocketOperatorOption, "url"> = {
 	heartbeatData: "ping",
 	heartbeatResult: "pong",
 	reconnectInterval: 2000,
-	maxReconnectionNum: 5
+	maxReconnectionNum: 5,
+	isSpeedUp: true,
 };
 
 // WebSocket 操作类
@@ -50,37 +68,37 @@ export default class WebSocketOperator {
 	// 内部私有属性
 	#heartbeatTimeout: NodeJS.Timeout | null = null; // 心跳定时器
 	#heartbeatNum: number = 0; // 心跳次数
-	#defaultReconnectInterval: number = 2000; // 默认重试间隔
 	#currentReconnectionNum: number = 0; // 当前已重试次数
 	#reconnectionTimeout: NodeJS.Timeout | null = null; // 重试定时器
 	#isDestroy: boolean = false; // 是否已销毁
 
-  /**
-   * WebSocket 实例
-   */
+	/**
+	 * WebSocket 实例
+	 */
 	public ws: WebSocket;
 	public option: WebSocketOperatorOption;
 
-	constructor(public opt: Partial<WebSocketOperatorOption> & { url: string }) {
+	constructor(opt: Partial<WebSocketOperatorOption> & { url: string }) {
 		this.option = Object.assign(defaultOption, opt);
 		this.ws = new WebSocket(opt.url);
-
 		this.init();
 	}
 
 	/**
-   * WebSocket 兼容性判断
-   */
+	 * WebSocket 兼容性判断
+	 */
 	public static isCompatibleWebSocket(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!window.WebSocket) {
-        const error = new Error("抱歉 你的设备不支持 WebSocket 请下载 Chrome 浏览器");
-        WebSocketOperator.log("userAgent: ", navigator.userAgent);
-        reject({ error, userAgent: navigator.userAgent });
-      } else {
-        resolve();
-      }
-    });
+		return new Promise((resolve, reject) => {
+			if (!window.WebSocket) {
+				const error = new Error(
+					"抱歉 你的设备不支持 WebSocket 请下载 Chrome 浏览器"
+				);
+				WebSocketOperator.log("userAgent: ", navigator.userAgent);
+				reject({ error, userAgent: navigator.userAgent });
+			} else {
+				resolve();
+			}
+		});
 	}
 
 	private static log(...msg: unknown[]): void {
@@ -89,21 +107,21 @@ export default class WebSocketOperator {
 		}
 	}
 
-  /**
-   * 初始化
-   */
+	/**
+	 * 初始化
+	 */
 	protected init() {
-    WebSocketOperator.isCompatibleWebSocket()
-      .then(() => {
-        // 绑定内部处理事件
-        this.bindEvent("onopen", this.$onopenOperator)
-          .bindEvent("onmessage", this.$onmessageOperator)
-          .bindEvent("onclose", this.$oncloseOperator)
-          .bindEvent("onerror", this.$onerrorOperator);
-      })
-      .catch((err) => {
-        throw err;
-      });
+		WebSocketOperator.isCompatibleWebSocket()
+			.then(() => {
+				// 绑定内部处理事件
+				this.bindEvent("onopen", this.$onopenOperator)
+					.bindEvent("onmessage", this.$onmessageOperator)
+					.bindEvent("onclose", this.$oncloseOperator)
+					.bindEvent("onerror", this.$onerrorOperator);
+			})
+			.catch((err) => {
+				throw err;
+			});
 	}
 
 	// 默认事件回调(会在 WebSocket 对应的时候被触发)
@@ -206,8 +224,8 @@ export default class WebSocketOperator {
 	}
 
 	/**
-   * 发送数据
-   */
+	 * 发送数据
+	 */
 	public send(msg: sendType): Promise<Error | void> {
 		return new Promise((resolve, reject) => {
 			const wsState = this.getWebSocketState();
@@ -228,22 +246,23 @@ export default class WebSocketOperator {
 		});
 	}
 
-  /**
-   * 关闭 WebSocket
-   */
+	/**
+	 * 关闭 WebSocket
+	 */
 	public close(code?: number, reason?: string) {
 		this.destroy(code, reason);
 	}
 
 	/**
-   * 获取 WebSocket 的状态
-   */
+	 * 获取 WebSocket 的状态
+	 */
 	public getWebSocketState() {
 		let ret: WebSocketState = {
 			alive: false, // 当前是否存活
 			message: "",
 			ws: this.ws,
-			readyState: this.ws.readyState
+			readyState: this.ws.readyState,
+			ReconnectionNum: this.#currentReconnectionNum,
 		};
 		switch (this.ws.readyState) {
 			case WebSocket.CONNECTING: // 0
@@ -266,9 +285,9 @@ export default class WebSocketOperator {
 	}
 
 	/**
-   * 发送心跳
-   */
-	public startHeartbeat(): void {
+	 * 发送心跳
+	 */
+	public startHeartbeat() {
 		this.#heartbeatTimeout = setInterval(() => {
 			this.#heartbeatNum++;
 			WebSocketOperator.log(`发送心跳, 当前心跳数: ${this.#heartbeatNum}`);
@@ -278,9 +297,9 @@ export default class WebSocketOperator {
 	}
 
 	/**
-   * 停止心跳
-   */
-	public endHeartbeat(): void {
+	 * 停止心跳
+	 */
+	public endHeartbeat() {
 		if (this.#heartbeatTimeout) {
 			WebSocketOperator.log(`心跳停止, 一共发送心跳数: ${this.#heartbeatNum}`);
 			this.#heartbeatNum = 0;
@@ -290,8 +309,8 @@ export default class WebSocketOperator {
 	}
 
 	/**
-   * 重新创建实例
-   */
+	 * 重新创建实例
+	 */
 	public reconnection(interval?: number, url?: string): void {
 		if (url && url.trim()) this.url = url;
 
@@ -310,40 +329,49 @@ export default class WebSocketOperator {
 					this.endReconnection();
 					// 触发 WebSocketOperator 实例的 onopen 事件(开启心跳)
 					this.$triggerFn("onopen", e);
+
+					// 延迟到下一次发送心跳时间
+					this.#heartbeatTimeout = setTimeout(() => {
+						this.startHeartbeat();
+					}, this.heartbeatInterval);
 				}
 			};
 			ws.onerror = (e: Event) => {
 				if (
-					this.#isDestroy ||
-					this.#currentReconnectionNum++ >= this.maxReconnectionNum
+					(this.#currentReconnectionNum++ >= this.maxReconnectionNum || this.#isDestroy) &&
+					this.maxReconnectionNum !== -1
 				) {
-					WebSocketOperator.log(
-						`已到达最大重试次数 ${this.maxReconnectionNum} 或 已失活`
-					);
+					WebSocketOperator.log(`已到达最大重试次数 ${this.maxReconnectionNum} 或 已失活`);
 					this.$triggerFn("onmaxReconnection", new Event("maxReconnection"));
 					if (!this.#isDestroy) this.destroy();
 				} else {
-					// 加速频率
-					this.calcReconnectionInterval();
+					let nextTime = interval;
+					// 是否加速重试频率
+					if (this.isSpeedUp) {
+						nextTime = this.calcReconnectionInterval();
+					} else {
+						nextTime = this.reconnectInterval;
+					}
 					this.#reconnectionTimeout = setTimeout(() => {
-						WebSocketOperator.log(
-							`正在重新连接...
-                  当前重试次数数: ${this.#currentReconnectionNum}, 
-                  最大重试次数: ${this.maxReconnectionNum}, 
-                  当前重试频率: ${this.reconnectInterval}`
-						);
+						const tip = [
+							"正在重新连接...",
+							`\t当前重试次数: ${this.#currentReconnectionNum}`,
+							`\t最大重试次数: ${this.maxReconnectionNum}`,
+							`\t当前重试频率: ${nextTime}`
+						].join("\n");
+						WebSocketOperator.log(tip);
 
 						// 重新创建实例
 						this.reconnection();
-					}, interval || this.reconnectInterval);
+					}, nextTime);
 				}
 			};
 		}
 	}
 
 	/**
-   * 停止重试
-   */
+	 * 停止重试
+	 */
 	public endReconnection(): void {
 		WebSocketOperator.log("停止重新连接");
 		if (this.#reconnectionTimeout) {
@@ -351,14 +379,13 @@ export default class WebSocketOperator {
 			clearTimeout(this.#reconnectionTimeout);
 			// 重置状态
 			this.#currentReconnectionNum = 0;
-			this.reconnectInterval = this.#defaultReconnectInterval;
 			this.#reconnectionTimeout = null;
 		}
 	}
 
 	/**
-   * 根据重试次数计算重试间隔
-   */
+	 * 根据重试次数计算重试间隔
+	 */
 	public calcReconnectionInterval(): number {
 		// 剩余次数
 		const restNum = this.maxReconnectionNum - this.#currentReconnectionNum;
@@ -366,13 +393,13 @@ export default class WebSocketOperator {
 		const probability = restNum / this.maxReconnectionNum;
 		// 新的重试间隔
 		const newReconnectInterval = this.reconnectInterval * probability;
-		this.reconnectInterval = newReconnectInterval;
+		// this.reconnectInterval = newReconnectInterval;
 		return newReconnectInterval;
 	}
 
 	/**
-   * 销毁
-   */
+	 * 销毁
+	 */
 	public destroy(code?: number, reason?: string) {
 		WebSocketOperator.log("WebSocketOperator destroy");
 		this.ws.close(code, reason);
@@ -409,6 +436,12 @@ export default class WebSocketOperator {
 	}
 	public set reconnectInterval(reconnectInterval) {
 		this.option.reconnectInterval = reconnectInterval;
+	}
+	public get isSpeedUp() {
+		return this.option.isSpeedUp;
+	}
+	public set isSpeedUp(isSpeedUp) {
+		this.option.isSpeedUp = isSpeedUp;
 	}
 	public get maxReconnectionNum() {
 		return this.option.maxReconnectionNum;

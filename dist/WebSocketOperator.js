@@ -9,22 +9,21 @@ var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
     return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
 };
-var _WebSocketOperator_heartbeatTimeout, _WebSocketOperator_heartbeatNum, _WebSocketOperator_defaultReconnectInterval, _WebSocketOperator_currentReconnectionNum, _WebSocketOperator_reconnectionTimeout, _WebSocketOperator_isDestroy;
+var _WebSocketOperator_heartbeatTimeout, _WebSocketOperator_heartbeatNum, _WebSocketOperator_currentReconnectionNum, _WebSocketOperator_reconnectionTimeout, _WebSocketOperator_isDestroy;
 const defaultOption = {
     heartbeatInterval: 5000,
     heartbeatData: "ping",
     heartbeatResult: "pong",
     reconnectInterval: 2000,
-    maxReconnectionNum: 5
+    maxReconnectionNum: 5,
+    isSpeedUp: true,
 };
 // WebSocket 操作类
 export default class WebSocketOperator {
     constructor(opt) {
-        this.opt = opt;
         // 内部私有属性
         _WebSocketOperator_heartbeatTimeout.set(this, null); // 心跳定时器
         _WebSocketOperator_heartbeatNum.set(this, 0); // 心跳次数
-        _WebSocketOperator_defaultReconnectInterval.set(this, 2000); // 默认重试间隔
         _WebSocketOperator_currentReconnectionNum.set(this, 0); // 当前已重试次数
         _WebSocketOperator_reconnectionTimeout.set(this, null); // 重试定时器
         _WebSocketOperator_isDestroy.set(this, false); // 是否已销毁
@@ -33,8 +32,8 @@ export default class WebSocketOperator {
         this.init();
     }
     /**
-   * WebSocket 兼容性判断
-   */
+     * WebSocket 兼容性判断
+     */
     static isCompatibleWebSocket() {
         return new Promise((resolve, reject) => {
             if (!window.WebSocket) {
@@ -150,8 +149,8 @@ export default class WebSocketOperator {
         }
     }
     /**
-   * 发送数据
-   */
+     * 发送数据
+     */
     send(msg) {
         return new Promise((resolve, reject) => {
             const wsState = this.getWebSocketState();
@@ -178,14 +177,15 @@ export default class WebSocketOperator {
         this.destroy(code, reason);
     }
     /**
-   * 获取 WebSocket 的状态
-   */
+     * 获取 WebSocket 的状态
+     */
     getWebSocketState() {
         let ret = {
             alive: false,
             message: "",
             ws: this.ws,
-            readyState: this.ws.readyState
+            readyState: this.ws.readyState,
+            ReconnectionNum: __classPrivateFieldGet(this, _WebSocketOperator_currentReconnectionNum, "f"),
         };
         switch (this.ws.readyState) {
             case WebSocket.CONNECTING: // 0
@@ -207,8 +207,8 @@ export default class WebSocketOperator {
         return ret;
     }
     /**
-   * 发送心跳
-   */
+     * 发送心跳
+     */
     startHeartbeat() {
         __classPrivateFieldSet(this, _WebSocketOperator_heartbeatTimeout, setInterval(() => {
             var _a;
@@ -219,8 +219,8 @@ export default class WebSocketOperator {
         }, this.heartbeatInterval), "f");
     }
     /**
-   * 停止心跳
-   */
+     * 停止心跳
+     */
     endHeartbeat() {
         if (__classPrivateFieldGet(this, _WebSocketOperator_heartbeatTimeout, "f")) {
             WebSocketOperator.log(`心跳停止, 一共发送心跳数: ${__classPrivateFieldGet(this, _WebSocketOperator_heartbeatNum, "f")}`);
@@ -230,8 +230,8 @@ export default class WebSocketOperator {
         }
     }
     /**
-   * 重新创建实例
-   */
+     * 重新创建实例
+     */
     reconnection(interval, url) {
         if (url && url.trim())
             this.url = url;
@@ -248,35 +248,48 @@ export default class WebSocketOperator {
                     this.endReconnection();
                     // 触发 WebSocketOperator 实例的 onopen 事件(开启心跳)
                     this.$triggerFn("onopen", e);
+                    // 延迟到下一次发送心跳时间
+                    __classPrivateFieldSet(this, _WebSocketOperator_heartbeatTimeout, setTimeout(() => {
+                        this.startHeartbeat();
+                    }, this.heartbeatInterval), "f");
                 }
             };
             ws.onerror = (e) => {
                 var _a, _b;
-                if (__classPrivateFieldGet(this, _WebSocketOperator_isDestroy, "f") ||
-                    (__classPrivateFieldSet(this, _WebSocketOperator_currentReconnectionNum, (_b = __classPrivateFieldGet(this, _WebSocketOperator_currentReconnectionNum, "f"), _a = _b++, _b), "f"), _a) >= this.maxReconnectionNum) {
+                if (((__classPrivateFieldSet(this, _WebSocketOperator_currentReconnectionNum, (_b = __classPrivateFieldGet(this, _WebSocketOperator_currentReconnectionNum, "f"), _a = _b++, _b), "f"), _a) >= this.maxReconnectionNum || __classPrivateFieldGet(this, _WebSocketOperator_isDestroy, "f")) &&
+                    this.maxReconnectionNum !== -1) {
                     WebSocketOperator.log(`已到达最大重试次数 ${this.maxReconnectionNum} 或 已失活`);
                     this.$triggerFn("onmaxReconnection", new Event("maxReconnection"));
                     if (!__classPrivateFieldGet(this, _WebSocketOperator_isDestroy, "f"))
                         this.destroy();
                 }
                 else {
-                    // 加速频率
-                    this.calcReconnectionInterval();
+                    let nextTime = interval;
+                    // 是否加速重试频率
+                    if (this.isSpeedUp) {
+                        nextTime = this.calcReconnectionInterval();
+                    }
+                    else {
+                        nextTime = this.reconnectInterval;
+                    }
                     __classPrivateFieldSet(this, _WebSocketOperator_reconnectionTimeout, setTimeout(() => {
-                        WebSocketOperator.log(`正在重新连接...
-                  当前重试次数数: ${__classPrivateFieldGet(this, _WebSocketOperator_currentReconnectionNum, "f")}, 
-                  最大重试次数: ${this.maxReconnectionNum}, 
-                  当前重试频率: ${this.reconnectInterval}`);
+                        const tip = [
+                            "正在重新连接...",
+                            `\t当前重试次数: ${__classPrivateFieldGet(this, _WebSocketOperator_currentReconnectionNum, "f")}`,
+                            `\t最大重试次数: ${this.maxReconnectionNum}`,
+                            `\t当前重试频率: ${nextTime}`
+                        ].join("\n");
+                        WebSocketOperator.log(tip);
                         // 重新创建实例
                         this.reconnection();
-                    }, interval || this.reconnectInterval), "f");
+                    }, nextTime), "f");
                 }
             };
         }
     }
     /**
-   * 停止重试
-   */
+     * 停止重试
+     */
     endReconnection() {
         WebSocketOperator.log("停止重新连接");
         if (__classPrivateFieldGet(this, _WebSocketOperator_reconnectionTimeout, "f")) {
@@ -284,13 +297,12 @@ export default class WebSocketOperator {
             clearTimeout(__classPrivateFieldGet(this, _WebSocketOperator_reconnectionTimeout, "f"));
             // 重置状态
             __classPrivateFieldSet(this, _WebSocketOperator_currentReconnectionNum, 0, "f");
-            this.reconnectInterval = __classPrivateFieldGet(this, _WebSocketOperator_defaultReconnectInterval, "f");
             __classPrivateFieldSet(this, _WebSocketOperator_reconnectionTimeout, null, "f");
         }
     }
     /**
-   * 根据重试次数计算重试间隔
-   */
+     * 根据重试次数计算重试间隔
+     */
     calcReconnectionInterval() {
         // 剩余次数
         const restNum = this.maxReconnectionNum - __classPrivateFieldGet(this, _WebSocketOperator_currentReconnectionNum, "f");
@@ -298,12 +310,12 @@ export default class WebSocketOperator {
         const probability = restNum / this.maxReconnectionNum;
         // 新的重试间隔
         const newReconnectInterval = this.reconnectInterval * probability;
-        this.reconnectInterval = newReconnectInterval;
+        // this.reconnectInterval = newReconnectInterval;
         return newReconnectInterval;
     }
     /**
-   * 销毁
-   */
+     * 销毁
+     */
     destroy(code, reason) {
         WebSocketOperator.log("WebSocketOperator destroy");
         this.ws.close(code, reason);
@@ -340,6 +352,12 @@ export default class WebSocketOperator {
     set reconnectInterval(reconnectInterval) {
         this.option.reconnectInterval = reconnectInterval;
     }
+    get isSpeedUp() {
+        return this.option.isSpeedUp;
+    }
+    set isSpeedUp(isSpeedUp) {
+        this.option.isSpeedUp = isSpeedUp;
+    }
     get maxReconnectionNum() {
         return this.option.maxReconnectionNum;
     }
@@ -347,7 +365,7 @@ export default class WebSocketOperator {
         this.option.maxReconnectionNum = maxReconnectionNum;
     }
 }
-_WebSocketOperator_heartbeatTimeout = new WeakMap(), _WebSocketOperator_heartbeatNum = new WeakMap(), _WebSocketOperator_defaultReconnectInterval = new WeakMap(), _WebSocketOperator_currentReconnectionNum = new WeakMap(), _WebSocketOperator_reconnectionTimeout = new WeakMap(), _WebSocketOperator_isDestroy = new WeakMap();
+_WebSocketOperator_heartbeatTimeout = new WeakMap(), _WebSocketOperator_heartbeatNum = new WeakMap(), _WebSocketOperator_currentReconnectionNum = new WeakMap(), _WebSocketOperator_reconnectionTimeout = new WeakMap(), _WebSocketOperator_isDestroy = new WeakMap();
 // 临时存储重新连接的 WebSocket 实例(类静态属性)
 WebSocketOperator.reconnectionInstance = null;
 WebSocketOperator.isDebug = false; // 是否打印log(类静态属性)
