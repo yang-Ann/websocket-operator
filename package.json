@@ -10,7 +10,10 @@
     "dev": "nodemon ./dist/app.js"
   },
   "keywords": [
-    "websocket"
+    "websocket",
+    "heartbeat",
+    "reconnection",
+    "Error retry"
   ],
   "author": "An <331536495@qq.com> https://ann-yang.gitee.io/note-sites/",
   "license": "ISC",

@@ -1,17 +1,39 @@
+// websoket 事件名
+type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
+
+/**
+ * 当前 WebSocket 的状态
+ */
 type WebSocketState = {
+	/**
+	 * 是否存活
+	 */
   alive: boolean;
+	/**
+	 * 信息
+	 */
   message: string;
+	/**
+	 * WebSocket 实例
+	 */
   ws: WebSocket;
+	/**
+	 * 同 WebSocket 的 readyState
+	 */
   readyState: number;
+	/**
+	 * 错误重试次数
+	 */
   ReconnectionNum?: number;
 }
 
-type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
-
+/**
+ * 发送的数据格式
+ */
 type sendType = string | ArrayBufferLike | Blob | ArrayBufferView
 
-type EventObjType = { event: Event };
-export type EventParams = WebSocketState & EventObjType;
+// 事件的参数
+export type EventParams = WebSocketState & { event: Event };
 
 export type WebSocketOperatorOption = {
 	/**
@@ -50,12 +72,13 @@ export type WebSocketOperatorOption = {
 	maxReconnectionNum: number;
 };
 
+// 默认配置
 const defaultOption: Omit<WebSocketOperatorOption, "url"> = {
 	heartbeatInterval: 5000,
 	heartbeatData: "ping",
 	heartbeatResult: "pong",
 	reconnectInterval: 2000,
-	maxReconnectionNum: 5,
+	maxReconnectionNum: 10,
 	isSpeedUp: true,
 };
 
@@ -90,9 +113,7 @@ export default class WebSocketOperator {
 	public static isCompatibleWebSocket(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			if (!window.WebSocket) {
-				const error = new Error(
-					"抱歉 你的设备不支持 WebSocket 请下载 Chrome 浏览器"
-				);
+				const error = new Error("抱歉 你的设备不支持 WebSocket 请下载 Chrome 浏览器");
 				WebSocketOperator.log("userAgent: ", navigator.userAgent);
 				reject({ error, userAgent: navigator.userAgent });
 			} else {
@@ -124,19 +145,37 @@ export default class WebSocketOperator {
 			});
 	}
 
-	// 默认事件回调(会在 WebSocket 对应的时候被触发)
+	//// 默认事件回调(会在 WebSocket 对应的时候被触发)
 	public onopen(ws: EventParams) {}
 	public onmessage(ws: EventParams) {}
 	public onclose(ws: EventParams) {}
 	public onerror(ws: EventParams) {}
 
-	// 内部提供事件回调
-	public onheartbeat(ws: EventParams) {} // 心跳时触发
-	public onreconnection(ws: EventParams) {} // 连接重试时触发
-	public ondestroy(ws: EventParams) {} // 销毁时触发
-	public onmaxReconnection(ws: EventParams) {} // 达到最大重试时触发
+	//// 内部提供事件回调
 
-	// 通用绑定事件方法
+	/**
+	 * 心跳时触发
+	 */
+	public onheartbeat(ws: EventParams) {}
+
+	/**
+	 * 连接重试时触发
+	 */
+	public onreconnection(ws: EventParams) {}
+
+	/**
+	 * 销毁时触发
+	 */
+	public ondestroy(ws: EventParams) {}
+
+	/**
+	 * 达到最大重试时触发
+	 */
+	public onmaxReconnection(ws: EventParams) {}
+
+	/**
+	 * 通用绑定事件方法
+	 */
 	protected bindEvent(
 		event: WebSocketEvent,
 		listener: (e: CloseEvent | Event | any) => void
@@ -146,7 +185,9 @@ export default class WebSocketOperator {
 		return this;
 	}
 
-	// 触发对应的事件回调
+	/**
+	 * 触发对应的事件回调
+	 */
 	protected $triggerFn(
 		key:
 			| WebSocketEvent
@@ -160,7 +201,9 @@ export default class WebSocketOperator {
 		this[key]({ ...wsState, event });
 	}
 
-	// WebSocket 实例打开事件
+	/**
+	 * WebSocket 实例打开事件
+	 */
 	protected $onopenOperator(e: Event): void {
 		const wsState = this.getWebSocketState();
 		if (wsState.alive) {
@@ -182,7 +225,9 @@ export default class WebSocketOperator {
 		}
 	}
 
-	// WebSocket 接受数据事件
+	/**
+	 * WebSocket 接受数据事件
+	 */
 	protected $onmessageOperator(e: Event | MessageEvent<any>): void {
 		// 触发message事件
 		this.$triggerFn("onmessage", e);
@@ -203,7 +248,9 @@ export default class WebSocketOperator {
 		}
 	}
 
-	// WebSocket 取消连接事件
+	/**
+	 * WebSocket 取消连接事件
+	 */
 	protected $oncloseOperator(e: CloseEvent): void {
 		this.$triggerFn("onclose", e);
 		this.endHeartbeat();
@@ -211,7 +258,9 @@ export default class WebSocketOperator {
 		WebSocketOperator.log("client close", e);
 	}
 
-	// WebSocket 错误事件
+	/**
+	 * WebSocket 错误事件
+	 */
 	protected $onerrorOperator(e: Event): void {
 		this.$triggerFn("onerror", e);
 		this.endHeartbeat();
@@ -315,9 +364,7 @@ export default class WebSocketOperator {
 		if (url && url.trim()) this.url = url;
 
 		// 重新创建实例
-		const ws = (WebSocketOperator.reconnectionInstance = new WebSocket(
-			this.url
-		));
+		const ws = (WebSocketOperator.reconnectionInstance = new WebSocket(this.url));
 		this.$triggerFn("onreconnection", new Event("reconnection"));
 		if (ws) {
 			ws.onopen = (e: Event) => {
