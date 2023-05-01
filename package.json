@@ -5,6 +5,10 @@
   "type": "module",
   "types": "dist/types/WebSocketOperator.d.ts",
   "main": "dist/WebSocketOperator.js",
+  "bugs": {
+    "url": "https://github.com/yang-Ann/websocket-operator/issues"
+  },
+  "homepage": "https://github.com/yang-Ann/websocket-operator",
   "scripts": {
     "build": "tsc -t es6 --outDir dist -w",
     "dev": "nodemon ./dist/app.js"
