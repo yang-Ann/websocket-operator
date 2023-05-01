@@ -211,7 +211,7 @@ export default class WebSocketOperator {
 			this.$triggerFn("onopen", e);
 
 			// 当前已连接延迟到下一次发送心跳
-			this.#heartbeatTimeout = setTimeout(() => {
+			setTimeout(() => {
 				this.startHeartbeat();
 			}, this.heartbeatInterval);
 		} else {
@@ -470,7 +470,14 @@ export default class WebSocketOperator {
 		return this.option.heartbeatInterval;
 	}
 	public set heartbeatInterval(heartbeatInterval) {
+		// 停止心跳定时器
+		if (this.#heartbeatTimeout) {
+			clearInterval(this.#heartbeatTimeout);
+		}
+		WebSocketOperator.log(`更新心跳频率 ${this.heartbeatInterval} -> ${heartbeatInterval}`);
 		this.option.heartbeatInterval = heartbeatInterval;
+		// 重新发送心跳
+		this.startHeartbeat();
 	}
 	public get heartbeatData() {
 		return this.option.heartbeatData;

@@ -1,21 +1,22 @@
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
 var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
     if (kind === "m") throw new TypeError("Private method is not writable");
     if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
-    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-};
 var _WebSocketOperator_heartbeatTimeout, _WebSocketOperator_heartbeatNum, _WebSocketOperator_currentReconnectionNum, _WebSocketOperator_reconnectionTimeout, _WebSocketOperator_isDestroy;
+// 默认配置
 const defaultOption = {
     heartbeatInterval: 5000,
     heartbeatData: "ping",
     heartbeatResult: "pong",
     reconnectInterval: 2000,
-    maxReconnectionNum: 5,
+    maxReconnectionNum: 10,
     isSpeedUp: true,
 };
 // WebSocket 操作类
@@ -67,37 +68,55 @@ export default class WebSocketOperator {
             throw err;
         });
     }
-    // 默认事件回调(会在 WebSocket 对应的时候被触发)
+    //// 默认事件回调(会在 WebSocket 对应的时候被触发)
     onopen(ws) { }
     onmessage(ws) { }
     onclose(ws) { }
     onerror(ws) { }
-    // 内部提供事件回调
-    onheartbeat(ws) { } // 心跳时触发
-    onreconnection(ws) { } // 连接重试时触发
-    ondestroy(ws) { } // 销毁时触发
-    onmaxReconnection(ws) { } // 达到最大重试时触发
-    // 通用绑定事件方法
+    //// 内部提供事件回调
+    /**
+     * 心跳时触发
+     */
+    onheartbeat(ws) { }
+    /**
+     * 连接重试时触发
+     */
+    onreconnection(ws) { }
+    /**
+     * 销毁时触发
+     */
+    ondestroy(ws) { }
+    /**
+     * 达到最大重试时触发
+     */
+    onmaxReconnection(ws) { }
+    /**
+     * 通用绑定事件方法
+     */
     bindEvent(event, listener) {
         // 需要绑定 this 不然在对应的回调里面的 this 就是 WebSocket
         this.ws[event] = listener.bind(this);
         return this;
     }
-    // 触发对应的事件回调
+    /**
+     * 触发对应的事件回调
+     */
     $triggerFn(key, event) {
         const wsState = this.getWebSocketState();
         this[key](Object.assign(Object.assign({}, wsState), { event }));
     }
-    // WebSocket 实例打开事件
+    /**
+     * WebSocket 实例打开事件
+     */
     $onopenOperator(e) {
         const wsState = this.getWebSocketState();
         if (wsState.alive) {
             // 触发打开事件
             this.$triggerFn("onopen", e);
             // 当前已连接延迟到下一次发送心跳
-            __classPrivateFieldSet(this, _WebSocketOperator_heartbeatTimeout, setTimeout(() => {
+            setTimeout(() => {
                 this.startHeartbeat();
-            }, this.heartbeatInterval), "f");
+            }, this.heartbeatInterval);
         }
         else {
             // 触发失败事件
@@ -108,7 +127,9 @@ export default class WebSocketOperator {
             }
         }
     }
-    // WebSocket 接受数据事件
+    /**
+     * WebSocket 接受数据事件
+     */
     $onmessageOperator(e) {
         // 触发message事件
         this.$triggerFn("onmessage", e);
@@ -129,14 +150,18 @@ export default class WebSocketOperator {
             WebSocketOperator.log("client的数据是: ", data, this);
         }
     }
-    // WebSocket 取消连接事件
+    /**
+     * WebSocket 取消连接事件
+     */
     $oncloseOperator(e) {
         this.$triggerFn("onclose", e);
         this.endHeartbeat();
         this.endReconnection();
         WebSocketOperator.log("client close", e);
     }
-    // WebSocket 错误事件
+    /**
+     * WebSocket 错误事件
+     */
     $onerrorOperator(e) {
         var _a;
         this.$triggerFn("onerror", e);
@@ -338,7 +363,14 @@ export default class WebSocketOperator {
         return this.option.heartbeatInterval;
     }
     set heartbeatInterval(heartbeatInterval) {
+        // 停止心跳定时器
+        if (__classPrivateFieldGet(this, _WebSocketOperator_heartbeatTimeout, "f")) {
+            clearInterval(__classPrivateFieldGet(this, _WebSocketOperator_heartbeatTimeout, "f"));
+        }
+        WebSocketOperator.log(`更新心跳频率 ${this.heartbeatInterval} -> ${heartbeatInterval}`);
         this.option.heartbeatInterval = heartbeatInterval;
+        // 重新发送心跳
+        this.startHeartbeat();
     }
     get heartbeatData() {
         return this.option.heartbeatData;

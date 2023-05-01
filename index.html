@@ -43,11 +43,15 @@
           isSpeedUp: false,
         });
 
-        // setTimeout(() => {
-        //   wsOperator.option.heartbeatData = "我变了";
-        //   // TODO 不会更新到心跳中
-        //   wsOperator.option.heartbeatInterval = 3000;
-        // }, 4000);
+        setTimeout(() => {
+          wsOperator.heartbeatData = "我变了";
+
+          // 错误写法, 不会更新到心跳中
+          // wsOperator.option.heartbeatInterval = 3000;
+
+          // 正确写法
+          wsOperator.heartbeatInterval = 3000;
+        }, 4000);
 
         wsOperator.onmessage = (msg) => {
           console.log("onmessage: ", msg);
