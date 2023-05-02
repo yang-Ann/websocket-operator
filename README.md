@@ -9,15 +9,18 @@ npm install @anlib/websocket-operator --save
 ```js
 import WebSocketOperator from "@anlib/websocket-operator";
 
+// 检测是否支持 websocket
 WebSocketOperator.isCompatibleWebSocket().then(res => {
+
   const wsOperator = new WebSocketOperator({
     url: "ws:localhost:8888/ws-test",
-    heartbeatInterval: 1000,
-    heartbeatData: "自定义心跳回应数据",
-    reconnectInterval: 1500,
-    maxReconnectionNum: -1,
+    heartbeatInterval: 1000, // 心跳间隔
+    heartbeatData: "自定义心跳回应数据", // 心跳回应数据, 需要配合 heartbeatResult
+    heartbeatResult: "pone", // 服务端心跳回应的值
+    reconnectInterval: 1500, // 重试间隔
+    maxReconnectionNum: -1, // 无限重试
     // maxReconnectionNum: 10,
-    isSpeedUp: false,
+    isSpeedUp: false, // 不会重试加快
   });
 
   setTimeout(() => {
@@ -75,7 +78,6 @@ WebSocketOperator.isCompatibleWebSocket().then(res => {
   if (err) {
     alert(err.message);
   }
-}).finally(err => {
-  sendBtn.disabled = false;
+  console.log("err: ", err);
 });
 ```
