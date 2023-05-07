@@ -1,6 +1,6 @@
 {
   "name": "@anlib/websocket-operator",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A simple websocket auto reconnection auto heartbeat package",
   "type": "module",
   "types": "dist/types/WebSocketOperator.d.ts",
