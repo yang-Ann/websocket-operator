@@ -15,7 +15,7 @@ WebSocketOperator.isCompatibleWebSocket().then(res => {
   const wsOperator = new WebSocketOperator({
     url: "ws:localhost:8888/ws-test",
     heartbeatInterval: 1000, // 心跳间隔
-    heartbeatData: "自定义心跳回应数据", // 心跳回应数据, 需要配合 heartbeatResult
+    heartbeatData: "ping", // 心跳回应数据, 需要配合 heartbeatResult
     heartbeatResult: "pone", // 服务端心跳回应的值
     reconnectInterval: 1500, // 重试间隔
     maxReconnectionNum: -1, // 无限重试
@@ -34,37 +34,37 @@ WebSocketOperator.isCompatibleWebSocket().then(res => {
   }, 4000);
 
   // 发送心跳时触发
-  wsOperator.onheartbeat = (event) => {
-    console.log("onheartbeat: ", event);
+  wsOperator.onheartbeat = (params) => {
+    console.log("onheartbeat: ", params);
   }
 
   // 重新连接时触发
-  wsOperator.onreconnection = (event) => {
-    console.log("onreconnection: ", event);
+  wsOperator.onreconnection = (params) => {
+    console.log("onreconnection: ", params);
   }
 
   // 错误重试达到最大时触发
-  wsOperator.onmaxReconnection = (event) => {
-    console.log("onmaxReconnection: ", event);
+  wsOperator.onmaxReconnection = (params) => {
+    console.log("onmaxReconnection: ", params);
   }
 
   // 销毁时触发
-  wsOperator.ondestroy = (event) => {
-    console.log("ondestroy: ", event);
+  wsOperator.ondestroy = (params) => {
+    console.log("ondestroy: ", params);
   }
 
   // 原本 WebSocket 的事件
-  wsOperator.onmessage = (msg) => {
-    console.log("onmessage: ", msg);
+  wsOperator.onmessage = (params) => {
+    console.log("onmessage: ", params);
   }
-  wsOperator.onopen = (msg) => {
-    console.log("onopen: ", msg);
+  wsOperator.onopen = (params) => {
+    console.log("onopen: ", params);
   }
-  wsOperator.onclose = (msg) => {
-    console.log("onclose: ", msg);
+  wsOperator.onclose = (params) => {
+    console.log("onclose: ", params);
   }
-  wsOperator.onerror = (msg) => {
-    console.log("onerror: ", msg);
+  wsOperator.onerror = (params) => {
+    console.log("onerror: ", params);
   }
 
 

@@ -1,39 +1,42 @@
 // websoket 事件名
-type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
+export type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
 
 /**
  * 当前 WebSocket 的状态
  */
-type WebSocketState = {
+export type WebSocketState = {
 	/**
 	 * 是否存活
 	 */
-  alive: boolean;
+	alive: boolean;
 	/**
 	 * 信息
 	 */
-  message: string;
+	message: string;
 	/**
 	 * WebSocket 实例
 	 */
-  ws: WebSocket;
+	ws: WebSocket;
 	/**
 	 * 同 WebSocket 的 readyState
 	 */
-  readyState: number;
+	readyState: number;
 	/**
 	 * 错误重试次数
 	 */
-  ReconnectionNum?: number;
-}
+	ReconnectionNum?: number;
+};
 
 /**
  * 发送的数据格式
  */
-type sendType = string | ArrayBufferLike | Blob | ArrayBufferView
+export type sendType = string | ArrayBufferLike | Blob | ArrayBufferView;
 
 // 事件的参数
-export type EventParams = WebSocketState & { event: Event };
+export type EventParams = WebSocketState & {
+  // 这里没办法同时兼容 web 和 react-native, 所以只能让使用者自己断言类型了
+  event: unknown;
+};
 
 export type WebSocketOperatorOption = {
 	/**
@@ -64,7 +67,7 @@ export type WebSocketOperatorOption = {
 	/**
 	 * 重试加快(重试次数越多, 则下次重试时间越快)
 	 */
-	isSpeedUp: boolean,
+	isSpeedUp: boolean;
 
 	/**
 	 * 最大失败重试次数, (-1就是无限重试, 其他值则是到达则停止)
@@ -72,27 +75,29 @@ export type WebSocketOperatorOption = {
 	maxReconnectionNum: number;
 };
 
-// 默认配置
+/** 默认配置 */
 const defaultOption: Omit<WebSocketOperatorOption, "url"> = {
 	heartbeatInterval: 5000,
 	heartbeatData: "ping",
 	heartbeatResult: "pong",
 	reconnectInterval: 2000,
 	maxReconnectionNum: 10,
-	isSpeedUp: true,
+	isSpeedUp: true
 };
 
 // WebSocket 操作类
 export default class WebSocketOperator {
-	// 临时存储重新连接的 WebSocket 实例(类静态属性)
+	/** 临时存储重新连接的 WebSocket 实例(类静态属性) */
 	private static reconnectionInstance: WebSocket | null = null;
-	private static isDebug: boolean = false; // 是否打印log(类静态属性)
+
+	/** 打印调试log */
+	public static isDebug: boolean = false;
 
 	// 内部私有属性
-	#heartbeatTimeout: NodeJS.Timeout | null = null; // 心跳定时器
+	#heartbeatTimeout: NodeJS.Timeout | number | null = null; // 心跳定时器
 	#heartbeatNum: number = 0; // 心跳次数
 	#currentReconnectionNum: number = 0; // 当前已重试次数
-	#reconnectionTimeout: NodeJS.Timeout | null = null; // 重试定时器
+	#reconnectionTimeout: NodeJS.Timeout | number | null = null; // 重试定时器
 	#isDestroy: boolean = false; // 是否已销毁
 
 	/**
@@ -110,12 +115,11 @@ export default class WebSocketOperator {
 	/**
 	 * WebSocket 兼容性判断
 	 */
-	public static isCompatibleWebSocket(): Promise<void> {
+	public static isCompatibleWebSocket(): Promise<void | Error> {
 		return new Promise((resolve, reject) => {
-			if (!window.WebSocket) {
-				const error = new Error("抱歉 你的设备不支持 WebSocket 请下载 Chrome 浏览器");
-				WebSocketOperator.log("userAgent: ", navigator.userAgent);
-				reject({ error, userAgent: navigator.userAgent });
+			if (!WebSocket) {
+				const error = new Error("抱歉 你的设备不支持 WebSocket");
+				reject(error);
 			} else {
 				resolve();
 			}
@@ -178,7 +182,7 @@ export default class WebSocketOperator {
 	 */
 	protected bindEvent(
 		event: WebSocketEvent,
-		listener: (e: CloseEvent | Event | any) => void
+		listener: (e?: any) => void
 	): this {
 		// 需要绑定 this 不然在对应的回调里面的 this 就是 WebSocket
 		this.ws[event] = listener.bind(this);
@@ -195,10 +199,14 @@ export default class WebSocketOperator {
 			| "onheartbeat"
 			| "ondestroy"
 			| "onmaxReconnection",
-		event: Event
+		event?: Event
 	) {
 		const wsState = this.getWebSocketState();
-		this[key]({ ...wsState, event });
+		if (event) {
+			this[key]({ ...wsState, event });
+		} else {
+			this[key]({ ...wsState, event: null });
+		}
 	}
 
 	/**
@@ -228,30 +236,27 @@ export default class WebSocketOperator {
 	/**
 	 * WebSocket 接受数据事件
 	 */
-	protected $onmessageOperator(e: Event | MessageEvent<any>): void {
+	protected $onmessageOperator(e: WebSocketMessageEvent): void {
 		// 触发message事件
 		this.$triggerFn("onmessage", e);
 
-		if (e instanceof MessageEvent) {
-			const data: sendType = e.data;
-			if (typeof data === "string") {
-				if (data === this.heartbeatResult) {
-					WebSocketOperator.log("收到服务端心跳回应: ", data);
-				}
-			} else if (data instanceof Blob) {
-				// data.text().then(text => { });
-				WebSocketOperator.log("收到服务端二进制对象数据: ", data);
-			} else if (data instanceof ArrayBuffer) {
-				WebSocketOperator.log("收到服务端二进制数组数据: ", data);
+		const data: sendType = e.data;
+		if (typeof data === "string") {
+			if (data === this.heartbeatResult) {
+				WebSocketOperator.log("收到服务端心跳回应: ", data);
 			}
-			WebSocketOperator.log("client的数据是: ", data, this);
+		} else if (data instanceof Blob) {
+			WebSocketOperator.log("收到服务端二进制对象数据: ", data);
+		} else if (data instanceof ArrayBuffer) {
+			WebSocketOperator.log("收到服务端二进制数组数据: ", data);
 		}
+		WebSocketOperator.log("client的数据是: ", data, this);
 	}
 
 	/**
 	 * WebSocket 取消连接事件
 	 */
-	protected $oncloseOperator(e: CloseEvent): void {
+	protected $oncloseOperator(e: WebSocketCloseEvent): void {
 		this.$triggerFn("onclose", e);
 		this.endHeartbeat();
 		this.endReconnection();
@@ -311,7 +316,7 @@ export default class WebSocketOperator {
 			message: "",
 			ws: this.ws,
 			readyState: this.ws.readyState,
-			ReconnectionNum: this.#currentReconnectionNum,
+			ReconnectionNum: this.#currentReconnectionNum
 		};
 		switch (this.ws.readyState) {
 			case WebSocket.CONNECTING: // 0
@@ -340,7 +345,7 @@ export default class WebSocketOperator {
 		this.#heartbeatTimeout = setInterval(() => {
 			this.#heartbeatNum++;
 			WebSocketOperator.log(`发送心跳, 当前心跳数: ${this.#heartbeatNum}`);
-			this.$triggerFn("onheartbeat", new Event("heartbeat"));
+			this.$triggerFn("onheartbeat");
 			this.send(this.heartbeatData);
 		}, this.heartbeatInterval);
 	}
@@ -364,10 +369,12 @@ export default class WebSocketOperator {
 		if (url && url.trim()) this.url = url;
 
 		// 重新创建实例
-		const ws = (WebSocketOperator.reconnectionInstance = new WebSocket(this.url));
-		this.$triggerFn("onreconnection", new Event("reconnection"));
+		const ws = (WebSocketOperator.reconnectionInstance = new WebSocket(
+			this.url
+		));
+		this.$triggerFn("onreconnection");
 		if (ws) {
-			ws.onopen = (e: Event) => {
+			ws.onopen = (e?: any) => {
 				if (ws.readyState === WebSocket.OPEN) {
 					this.ws = ws;
 					this.init();
@@ -385,11 +392,14 @@ export default class WebSocketOperator {
 			};
 			ws.onerror = (e: Event) => {
 				if (
-					(this.#currentReconnectionNum++ >= this.maxReconnectionNum || this.#isDestroy) &&
+					(this.#currentReconnectionNum++ >= this.maxReconnectionNum ||
+						this.#isDestroy) &&
 					this.maxReconnectionNum !== -1
 				) {
-					WebSocketOperator.log(`已到达最大重试次数 ${this.maxReconnectionNum} 或 已失活`);
-					this.$triggerFn("onmaxReconnection", new Event("maxReconnection"));
+					WebSocketOperator.log(
+						`已到达最大重试次数 ${this.maxReconnectionNum} 或 已失活`
+					);
+					this.$triggerFn("onmaxReconnection", e);
 					if (!this.#isDestroy) this.destroy();
 				} else {
 					let nextTime = interval;
@@ -453,7 +463,7 @@ export default class WebSocketOperator {
 		this.#isDestroy = true;
 		this.endHeartbeat();
 		this.endReconnection();
-		this.$triggerFn("ondestroy", new Event("destroy"));
+		this.$triggerFn("ondestroy");
 	}
 
 	//// getter / setter ////
@@ -474,7 +484,9 @@ export default class WebSocketOperator {
 		if (this.#heartbeatTimeout) {
 			clearInterval(this.#heartbeatTimeout);
 		}
-		WebSocketOperator.log(`更新心跳频率 ${this.heartbeatInterval} -> ${heartbeatInterval}`);
+		WebSocketOperator.log(
+			`更新心跳频率 ${this.heartbeatInterval} -> ${heartbeatInterval}`
+		);
 		this.option.heartbeatInterval = heartbeatInterval;
 		// 重新发送心跳
 		this.startHeartbeat();

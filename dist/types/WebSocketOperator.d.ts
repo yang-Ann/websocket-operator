@@ -1,8 +1,9 @@
-type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
+/// <reference types="react-native" />
+export type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
 /**
  * 当前 WebSocket 的状态
  */
-type WebSocketState = {
+export type WebSocketState = {
     /**
      * 是否存活
      */
@@ -27,9 +28,9 @@ type WebSocketState = {
 /**
  * 发送的数据格式
  */
-type sendType = string | ArrayBufferLike | Blob | ArrayBufferView;
+export type sendType = string | ArrayBufferLike | Blob | ArrayBufferView;
 export type EventParams = WebSocketState & {
-    event: Event;
+    event: unknown;
 };
 export type WebSocketOperatorOption = {
     /**
@@ -63,8 +64,10 @@ export type WebSocketOperatorOption = {
 };
 export default class WebSocketOperator {
     #private;
+    /** 临时存储重新连接的 WebSocket 实例(类静态属性) */
     private static reconnectionInstance;
-    private static isDebug;
+    /** 打印调试log */
+    static isDebug: boolean;
     /**
      * WebSocket 实例
      */
@@ -76,7 +79,7 @@ export default class WebSocketOperator {
     /**
      * WebSocket 兼容性判断
      */
-    static isCompatibleWebSocket(): Promise<void>;
+    static isCompatibleWebSocket(): Promise<void | Error>;
     private static log;
     /**
      * 初始化
@@ -105,11 +108,11 @@ export default class WebSocketOperator {
     /**
      * 通用绑定事件方法
      */
-    protected bindEvent(event: WebSocketEvent, listener: (e: CloseEvent | Event | any) => void): this;
+    protected bindEvent(event: WebSocketEvent, listener: (e?: any) => void): this;
     /**
      * 触发对应的事件回调
      */
-    protected $triggerFn(key: WebSocketEvent | "onreconnection" | "onheartbeat" | "ondestroy" | "onmaxReconnection", event: Event): void;
+    protected $triggerFn(key: WebSocketEvent | "onreconnection" | "onheartbeat" | "ondestroy" | "onmaxReconnection", event?: Event): void;
     /**
      * WebSocket 实例打开事件
      */
@@ -117,11 +120,11 @@ export default class WebSocketOperator {
     /**
      * WebSocket 接受数据事件
      */
-    protected $onmessageOperator(e: Event | MessageEvent<any>): void;
+    protected $onmessageOperator(e: WebSocketMessageEvent): void;
     /**
      * WebSocket 取消连接事件
      */
-    protected $oncloseOperator(e: CloseEvent): void;
+    protected $oncloseOperator(e: WebSocketCloseEvent): void;
     /**
      * WebSocket 错误事件
      */
@@ -176,4 +179,3 @@ export default class WebSocketOperator {
     get maxReconnectionNum(): number;
     set maxReconnectionNum(maxReconnectionNum: number);
 }
-export {};
