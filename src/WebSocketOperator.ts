@@ -36,10 +36,10 @@ export type WebSocketOperatorOption = {
   heartbeatInterval: number;
 
   /** 客户端心跳值(发送给服务端) */
-  heartbeatData: string;
+  heartbeatData: any;
 
   /** 服务端心跳回应数据(客户端接收到的) */
-  heartbeatResult: string;
+  heartbeatResult: any;
 
   /** 重试间隔时长 */
   reconnectInterval: number;
@@ -109,9 +109,7 @@ export default class WebSocketOperator {
   }
 
   private static log(...msg: unknown[]): void {
-    if (WebSocketOperator.isDebug) {
-      console.log(...msg);
-    }
+    if (WebSocketOperator.isDebug) console.log(...msg);
   }
 
   /**
@@ -211,12 +209,11 @@ export default class WebSocketOperator {
    * WebSocket 接受数据事件
    */
   protected $onmessageOperator(e: WebSocketMessageEvent): void {
-		const data: sendType = e.data;
+    const data: sendType = e.data;
     if (typeof data === "string") {
-			// TODO 这里可以传进来一个函数, 让使用者自己判断是否是心跳数据
       if (data === this.heartbeatResult) {
         WebSocketOperator.log("收到服务端心跳回应: ", data);
-				return;
+        return;
       }
     } else if (data instanceof Blob) {
       WebSocketOperator.log("收到服务端二进制对象数据: ", data);
@@ -225,7 +222,7 @@ export default class WebSocketOperator {
     }
     WebSocketOperator.log("client的数据是: ", data, this);
 
-		// 触发message事件
+    // 触发message事件
     this.$triggerFn("onmessage", e);
   }
 
@@ -259,7 +256,7 @@ export default class WebSocketOperator {
   public send(msg: sendType): Promise<Error | void> {
     return new Promise((resolve, reject) => {
       const wsState = this.getWebSocketState();
-      let err: Error | void;
+      let err: Error | null = null;
       if (!wsState.alive) {
         err = new Error(wsState.message);
       }
@@ -323,7 +320,13 @@ export default class WebSocketOperator {
       this.#heartbeatNum++;
       WebSocketOperator.log(`发送心跳, 当前心跳数: ${this.#heartbeatNum}`);
       this.$triggerFn("onheartbeat");
-      this.send(this.heartbeatData);
+      this.send(this.heartbeatData)
+        .then(() => {
+					WebSocketOperator.log("心跳发送成功");
+        })
+        .catch(err => {
+					WebSocketOperator.log("心跳发送失败: ", err);
+        });
     }, this.heartbeatInterval);
   }
 
