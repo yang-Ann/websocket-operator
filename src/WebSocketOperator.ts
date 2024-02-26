@@ -316,6 +316,7 @@ export default class WebSocketOperator {
    * 发送心跳
    */
   public startHeartbeat() {
+    this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
     this.#heartbeatTimeout = setInterval(() => {
       this.#heartbeatNum++;
       WebSocketOperator.log(`发送心跳, 当前心跳数: ${this.#heartbeatNum}`);
@@ -348,6 +349,9 @@ export default class WebSocketOperator {
   public reconnection(interval?: number, url?: string): void {
     if (url && url.trim()) this.url = url;
 
+    // 停止心跳定时器
+    this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
+
     // 重新创建实例
     const ws = (this.#reconnectionInstance = new WebSocket(this.url));
     this.$triggerFn("onreconnection");
@@ -363,6 +367,7 @@ export default class WebSocketOperator {
           this.$triggerFn("onopen", e);
 
           // 延迟到下一次发送心跳时间
+          this.#heartbeatTimeout && clearTimeout(this.#heartbeatTimeout);
           this.#heartbeatTimeout = setTimeout(() => {
             this.startHeartbeat();
           }, this.heartbeatInterval);
@@ -455,10 +460,6 @@ export default class WebSocketOperator {
     return this.option.heartbeatInterval;
   }
   public set heartbeatInterval(heartbeatInterval) {
-    // 停止心跳定时器
-    if (this.#heartbeatTimeout) {
-      clearInterval(this.#heartbeatTimeout);
-    }
     WebSocketOperator.log(`更新心跳频率 ${this.heartbeatInterval} -> ${heartbeatInterval}`);
     this.option.heartbeatInterval = heartbeatInterval;
     // 重新发送心跳

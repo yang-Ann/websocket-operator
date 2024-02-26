@@ -1,81 +1,54 @@
-/// <reference types="react-native" />
 export type WebSocketEvent = "onopen" | "onclose" | "onerror" | "onmessage";
 /**
  * 当前 WebSocket 的状态
  */
 export type WebSocketState = {
-    /**
-     * 是否存活
-     */
+    /** 是否存活 */
     alive: boolean;
-    /**
-     * 信息
-     */
+    /** 信息 */
     message: string;
-    /**
-     * WebSocket 实例
-     */
+    /** WebSocket 实例 */
     ws: WebSocket;
-    /**
-     * 同 WebSocket 的 readyState
-     */
+    /** 同 WebSocket 的 readyState */
     readyState: number;
-    /**
-     * 错误重试次数
-     */
-    ReconnectionNum?: number;
+    /** 错误重试次数 */
+    reconnectionNum: number;
+    /** 心跳次数 */
+    heartbeatNum: number;
 };
-/**
- * 发送的数据格式
- */
+/** 发送的数据格式 */
 export type sendType = string | ArrayBufferLike | Blob | ArrayBufferView;
+/** 事件的参数 */
 export type EventParams = WebSocketState & {
+    /** 这里没办法同时兼容 web 和 react-native, 所以只能让使用者自己断言类型了 */
     event: unknown;
 };
 export type WebSocketOperatorOption = {
-    /**
-     * websocket 连接url
-     */
+    /** websocket 连接url */
     url: string;
-    /**
-     * 心跳间隔
-     */
+    /** 心跳间隔 */
     heartbeatInterval: number;
-    /**
-     * 客户端心跳值(发送给服务端)
-     */
-    heartbeatData: string;
-    /**
-     * 服务端心跳回应数据(客户端接收到的)
-     */
-    heartbeatResult: string;
-    /**
-     * 重试间隔时长
-     */
+    /** 客户端心跳值(发送给服务端) */
+    heartbeatData: any;
+    /** 服务端心跳回应数据(客户端接收到的) */
+    heartbeatResult: any;
+    /** 重试间隔时长 */
     reconnectInterval: number;
-    /**
-     * 重试加快(重试次数越多, 则下次重试时间越快)
-     */
+    /** 重试加快(重试次数越多, 则下次重试时间越快) */
     isSpeedUp: boolean;
-    /**
-     * 最大失败重试次数, (-1就是无限重试, 其他值则是到达则停止)
-     */
+    /** 最大失败重试次数, (-1就是无限重试, 其他值则是到达则停止) */
     maxReconnectionNum: number;
 };
+/** WebSocket 操作类 */
 export default class WebSocketOperator {
     #private;
-    /** 临时存储重新连接的 WebSocket 实例(类静态属性) */
-    private static reconnectionInstance;
     /** 打印调试log */
     static isDebug: boolean;
-    /**
-     * WebSocket 实例
-     */
+    /** WebSocket 实例 */
     ws: WebSocket;
+    /** WebSocket 配置 */
     option: WebSocketOperatorOption;
-    constructor(opt: Partial<WebSocketOperatorOption> & {
-        url: string;
-    });
+    constructor(opt: WebSocketOperatorOption);
     /**
      * WebSocket 兼容性判断
      */
@@ -167,11 +140,11 @@ export default class WebSocketOperator {
     destroy(code?: number, reason?: string): void;
     get url(): string;
     set url(url: string);
-    get heartbeatResult(): string;
+    get heartbeatResult(): any;
     get heartbeatInterval(): number;
     set heartbeatInterval(heartbeatInterval: number);
-    get heartbeatData(): string;
-    set heartbeatData(heartbeatData: string);
+    get heartbeatData(): any;
+    set heartbeatData(heartbeatData: any);
     get reconnectInterval(): number;
     set reconnectInterval(reconnectInterval: number);
     get isSpeedUp(): boolean;
