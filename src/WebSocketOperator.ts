@@ -208,7 +208,7 @@ export default class WebSocketOperator {
   /**
    * WebSocket 接受数据事件
    */
-  protected $onmessageOperator(e: WebSocketMessageEvent): void {
+  protected $onmessageOperator(e: Event & { data: any }): void {
     const data: sendType = e.data;
     if (typeof data === "string") {
       if (data === this.heartbeatResult) {
@@ -312,12 +312,20 @@ export default class WebSocketOperator {
     return ret;
   }
 
+  /** 上次发送心跳的时间戳 */
+  #preSendHeartbeatTime = 0;
   /**
    * 发送心跳
    */
   public startHeartbeat() {
     this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
     this.#heartbeatTimeout = setInterval(() => {
+      if (Date.now() - this.#preSendHeartbeatTime < this.heartbeatInterval) {
+        console.warn("心跳发送间隔太快");
+        return;
+      }
+      this.#preSendHeartbeatTime = Date.now();
+
       this.#heartbeatNum++;
       WebSocketOperator.log(`发送心跳, 当前心跳数: ${this.#heartbeatNum}`);
       this.$triggerFn("onheartbeat");
