@@ -190,8 +190,9 @@ export default class WebSocketOperator {
       // 触发打开事件
       this.$triggerFn("onopen", e);
 
+      this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
       // 当前已连接延迟到下一次发送心跳
-      setTimeout(() => {
+      this.#heartbeatTimeout = setTimeout(() => {
         this.startHeartbeat();
       }, this.heartbeatInterval);
     } else {
@@ -208,7 +209,7 @@ export default class WebSocketOperator {
   /**
    * WebSocket 接受数据事件
    */
-  protected $onmessageOperator(e: Event & { data: any }): void {
+  protected $onmessageOperator(e: WebSocketMessageEvent): void {
     const data: sendType = e.data;
     if (typeof data === "string") {
       if (data === this.heartbeatResult) {
