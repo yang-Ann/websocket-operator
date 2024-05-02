@@ -118,8 +118,9 @@ class WebSocketOperator {
         if (wsState.alive) {
             // 触发打开事件
             this.$triggerFn("onopen", e);
+            this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
             // 当前已连接延迟到下一次发送心跳
-            setTimeout(() => {
+            this.#heartbeatTimeout = setTimeout(() => {
                 this.startHeartbeat();
             }, this.heartbeatInterval);
         }
@@ -234,12 +235,20 @@ class WebSocketOperator {
         }
         return ret;
     }
+    /** 上次发送心跳的时间戳 */
+    #preSendHeartbeatTime = 0;
     /**
      * 发送心跳
      */
     startHeartbeat() {
         this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
         this.#heartbeatTimeout = setInterval(() => {
+            if (Date.now() - this.#preSendHeartbeatTime < this.heartbeatInterval) {
+                if (WebSocketOperator.isDebug)
+                    console.warn('心跳发送间隔太快');
+                return;
+            }
+            this.#preSendHeartbeatTime = Date.now();
             this.#heartbeatNum++;
             WebSocketOperator.log(`发送心跳, 当前心跳数: ${this.#heartbeatNum}`);
             this.$triggerFn("onheartbeat");
@@ -308,6 +317,7 @@ class WebSocketOperator {
                     else {
                         nextTime = this.reconnectInterval;
                     }
+                    this.#reconnectionTimeout && clearTimeout(this.#reconnectionTimeout);
                     this.#reconnectionTimeout = setTimeout(() => {
                         const tip = [
                             "正在重新连接...",

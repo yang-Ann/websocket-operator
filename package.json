@@ -1,6 +1,6 @@
 {
   "name": "@anlib/websocket-operator",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "一个简单的websocket封装, 自带错误重连, 自动心跳, 支持web h5和react-native",
   "type": "module",
   "types": "dist/types/WebSocketOperator.d.ts",

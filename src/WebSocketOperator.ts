@@ -322,7 +322,7 @@ export default class WebSocketOperator {
     this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
     this.#heartbeatTimeout = setInterval(() => {
       if (Date.now() - this.#preSendHeartbeatTime < this.heartbeatInterval) {
-        console.warn("心跳发送间隔太快");
+        if (WebSocketOperator.isDebug) console.warn('心跳发送间隔太快');
         return;
       }
       this.#preSendHeartbeatTime = Date.now();
@@ -398,6 +398,8 @@ export default class WebSocketOperator {
           } else {
             nextTime = this.reconnectInterval;
           }
+
+          this.#reconnectionTimeout && clearTimeout(this.#reconnectionTimeout);
           this.#reconnectionTimeout = setTimeout(() => {
             const tip = [
               "正在重新连接...",
