@@ -173,6 +173,7 @@ export default class WebSocketOperator {
     key: WebSocketEvent | "onreconnection" | "onheartbeat" | "ondestroy" | "onmaxReconnection",
     event?: Event
   ) {
+    WebSocketOperator.log("$triggerFn", key);
     const wsState = this.getWebSocketState();
     if (event) {
       this[key]({ ...wsState, event });
@@ -198,6 +199,8 @@ export default class WebSocketOperator {
     } else {
       // 触发失败事件
       this.$triggerFn("onerror", e);
+      this.endHeartbeat();
+      WebSocketOperator.log("client error", e);
 
       if (!this.#isDestroy && !this.#reconnectionTimeout) {
         // 连接失败立即重试
@@ -332,7 +335,7 @@ export default class WebSocketOperator {
       this.$triggerFn("onheartbeat");
       this.send(this.heartbeatData)
         .then(() => {
-					WebSocketOperator.log("心跳发送成功");
+					WebSocketOperator.log(`第${this.#heartbeatNum}次心跳发送成功`);
         })
         .catch(err => {
 					WebSocketOperator.log("心跳发送失败: ", err);
@@ -344,8 +347,9 @@ export default class WebSocketOperator {
    * 停止心跳
    */
   public endHeartbeat() {
+    WebSocketOperator.log("停止心跳");
     if (this.#heartbeatTimeout) {
-      WebSocketOperator.log(`心跳停止, 一共发送心跳数: ${this.#heartbeatNum}`);
+      WebSocketOperator.log(`一共发送心跳数: ${this.#heartbeatNum}`);
       this.#heartbeatNum = 0;
       clearInterval(this.#heartbeatTimeout);
       this.#heartbeatTimeout = null;
@@ -449,12 +453,16 @@ export default class WebSocketOperator {
    * 销毁
    */
   public destroy(code?: number, reason?: string) {
-    WebSocketOperator.log("WebSocketOperator destroy");
-    this.ws.close(code, reason);
-    this.#isDestroy = true;
-    this.endHeartbeat();
-    this.endReconnection();
-    this.$triggerFn("ondestroy");
+    if (this.ws) {
+      WebSocketOperator.log("WebSocketOperator destroy");
+      this.ws.close(code, reason);
+      this.#isDestroy = true;
+      this.endHeartbeat();
+      this.endReconnection();
+      this.$triggerFn("ondestroy");
+    } else {
+      WebSocketOperator.log("WebSocketOperator not init");
+    }
   }
 
   //// getter / setter ////
