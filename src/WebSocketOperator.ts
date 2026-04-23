@@ -322,6 +322,7 @@ export default class WebSocketOperator {
    * 发送心跳
    */
   public startHeartbeat() {
+    if (this.#isDestroy) return;
     this.#heartbeatTimeout && clearInterval(this.#heartbeatTimeout);
     this.#heartbeatTimeout = setInterval(() => {
       if (Date.now() - this.#preSendHeartbeatTime < this.heartbeatInterval) {
@@ -455,10 +456,10 @@ export default class WebSocketOperator {
   public destroy(code?: number, reason?: string) {
     if (this.ws) {
       WebSocketOperator.log("WebSocketOperator destroy");
-      this.ws.close(code, reason);
       this.#isDestroy = true;
       this.endHeartbeat();
       this.endReconnection();
+      this.ws.close(code, reason);
       this.$triggerFn("ondestroy");
     } else {
       WebSocketOperator.log("WebSocketOperator not init");
